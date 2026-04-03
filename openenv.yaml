@@ -1,0 +1,240 @@
+name: carbon-aware-scheduler
+version: 1.0.0
+description: |
+  Carbon-Aware Cloud Workload Scheduler - A production-level OpenEnv environment
+  for scheduling compute jobs to minimize carbon emissions while meeting deadlines
+  and capacity constraints. Simulates real-world cloud scheduling systems used by
+  companies like Google and AWS.
+
+author: OpenEnv Team
+license: MIT
+
+environment:
+  class: env.scheduler_env.SchedulerEnv
+  type: single-step
+  
+observation_space:
+  type: object
+  properties:
+    jobs:
+      type: array
+      description: List of compute jobs to schedule
+      items:
+        type: object
+        properties:
+          id:
+            type: integer
+            description: Unique job identifier
+          duration:
+            type: integer
+            description: Number of time slots required
+            minimum: 1
+          deadline:
+            type: integer
+            description: Time slot by which job must complete
+            minimum: 1
+          priority:
+            type: integer
+            description: Job priority (1=low, 5=high)
+            minimum: 1
+            maximum: 5
+    carbon_intensity:
+      type: array
+      description: Carbon intensity (gCO2/kWh) for each time slot
+      items:
+        type: integer
+    capacity:
+      type: integer
+      description: Maximum concurrent jobs per time slot
+      minimum: 1
+    time_horizon:
+      type: integer
+      description: Total time slots available
+      default: 24
+
+action_space:
+  type: object
+  properties:
+    schedule:
+      type: array
+      description: List of job scheduling decisions
+      items:
+        type: object
+        properties:
+          job_id:
+            type: integer
+            description: ID of job to schedule
+          start_time:
+            type: integer
+            description: Time slot when job starts
+            minimum: 0
+
+reward:
+  type: continuous
+  range: [0.0, 1.0]
+  description: |
+    Normalized reward based on:
+    - Carbon emissions (lower is better)
+    - Deadline compliance (penalties for misses)
+    - Capacity violations (penalties)
+    - Job completion (bonus for scheduling all jobs)
+
+tasks:
+  easy:
+    description: Simple scheduling with few jobs and no capacity constraints
+    difficulty: 1
+    grader:
+      module: grader
+      function: grade_task
+      args:
+        task_name: easy
+    config:
+      capacity: 10
+      time_horizon: 24
+      jobs:
+        - id: 1
+          duration: 3
+          deadline: 12
+          priority: 3
+        - id: 2
+          duration: 2
+          deadline: 10
+          priority: 2
+        - id: 3
+          duration: 4
+          deadline: 20
+          priority: 1
+  
+  medium:
+    description: Moderate complexity with deadlines and carbon optimization
+    difficulty: 2
+    grader:
+      module: grader
+      function: grade_task
+      args:
+        task_name: medium
+    config:
+      capacity: 3
+      time_horizon: 24
+      jobs:
+        - id: 1
+          duration: 4
+          deadline: 10
+          priority: 5
+        - id: 2
+          duration: 3
+          deadline: 12
+          priority: 4
+        - id: 3
+          duration: 2
+          deadline: 8
+          priority: 3
+        - id: 4
+          duration: 5
+          deadline: 18
+          priority: 2
+        - id: 5
+          duration: 3
+          deadline: 15
+          priority: 3
+        - id: 6
+          duration: 2
+          deadline: 20
+          priority: 1
+        - id: 7
+          duration: 4
+          deadline: 22
+          priority: 2
+  
+  hard:
+    description: Complex scheduling with tight capacity, priorities, and deadlines
+    difficulty: 3
+    grader:
+      module: grader
+      function: grade_task
+      args:
+        task_name: hard
+    config:
+      capacity: 2
+      time_horizon: 24
+      jobs:
+        - id: 1
+          duration: 3
+          deadline: 8
+          priority: 5
+        - id: 2
+          duration: 4
+          deadline: 10
+          priority: 5
+        - id: 3
+          duration: 2
+          deadline: 6
+          priority: 4
+        - id: 4
+          duration: 5
+          deadline: 15
+          priority: 4
+        - id: 5
+          duration: 3
+          deadline: 12
+          priority: 3
+        - id: 6
+          duration: 2
+          deadline: 10
+          priority: 3
+        - id: 7
+          duration: 4
+          deadline: 18
+          priority: 2
+        - id: 8
+          duration: 3
+          deadline: 20
+          priority: 2
+        - id: 9
+          duration: 2
+          deadline: 14
+          priority: 1
+        - id: 10
+          duration: 5
+          deadline: 22
+          priority: 1
+        - id: 11
+          duration: 3
+          deadline: 16
+          priority: 3
+        - id: 12
+          duration: 2
+          deadline: 24
+          priority: 1
+
+constraints:
+  compute:
+    vcpu: 2
+    memory_gb: 8
+  runtime:
+    max_inference_minutes: 20
+  deterministic: true
+
+metrics:
+  - name: total_carbon
+    description: Total carbon emissions in gCO2
+    type: minimize
+  - name: completion_rate
+    description: Percentage of jobs successfully scheduled
+    type: maximize
+  - name: deadline_misses
+    description: Number of jobs missing deadlines
+    type: minimize
+  - name: capacity_violations
+    description: Number of capacity constraint violations
+    type: minimize
+
+baselines:
+  greedy:
+    description: Greedy scheduler prioritizing deadlines
+    module: optimizer.greedy
+    class: GreedyOptimizer
+  ilp:
+    description: Optimal ILP solver
+    module: optimizer.ilp_solver
+    class: ILPOptimizer

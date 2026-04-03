@@ -1,0 +1,90 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Carbon-Aware Cloud Workload Scheduler"
+abstract: "A production-level OpenEnv environment for AI-driven cloud workload scheduling that minimizes carbon emissions while meeting deadlines and capacity constraints. Based on research from Google, Microsoft, and academic papers."
+authors:
+  - family-names: "OpenEnv"
+    given-names: "Team"
+repository-code: "https://github.com/yourusername/carbon-scheduler"
+url: "https://github.com/yourusername/carbon-scheduler"
+keywords:
+  - carbon-aware computing
+  - cloud scheduling
+  - sustainable computing
+  - reinforcement learning
+  - optimization
+  - OpenEnv
+  - green computing
+license: MIT
+version: 1.0.0
+date-released: 2024-01-01
+
+references:
+  - type: article
+    authors:
+      - family-names: "Wiesner"
+        given-names: "Philipp"
+      - family-names: "Behnke"
+        given-names: "Ilja"
+      - family-names: "Scheinert"
+        given-names: "Dominik"
+      - family-names: "Gontarska"
+        given-names: "Kordian"
+      - family-names: "Thamsen"
+        given-names: "Lauritz"
+    title: "Let's Wait Awhile: How Temporal Workload Shifting Can Reduce Carbon Emissions in the Cloud"
+    year: 2021
+    conference: "ACM Symposium on Cloud Computing (SoCC)"
+    
+  - type: article
+    authors:
+      - family-names: "Acun"
+        given-names: "Bilge"
+      - family-names: "Lee"
+        given-names: "Benjamin C."
+      - family-names: "Kazhamiaka"
+        given-names: "Fiodar"
+      - family-names: "Maeng"
+        given-names: "Kiwan"
+      - family-names: "Gupta"
+        given-names: "Udit"
+      - family-names: "Chakkaravarthy"
+        given-names: "Manoj"
+      - family-names: "Brooks"
+        given-names: "David"
+      - family-names: "Wu"
+        given-names: "Carole-Jean"
+    title: "Carbon Explorer: A Holistic Framework for Designing Carbon Aware Datacenters"
+    year: 2023
+    conference: "ASPLOS"
+    
+  - type: article
+    authors:
+      - family-names: "Radovanovic"
+        given-names: "Ana"
+      - family-names: "Koningstein"
+        given-names: "Ross"
+      - family-names: "Schneider"
+        given-names: "Ian"
+      - family-names: "Chen"
+        given-names: "Bokan"
+      - family-names: "Duarte"
+        given-names: "Alexandre"
+      - family-names: "Roy"
+        given-names: "Binz"
+      - family-names: "Xiao"
+        given-names: "Diyue"
+      - family-names: "Haridasan"
+        given-names: "Maya"
+      - family-names: "Hung"
+        given-names: "Patrick"
+      - family-names: "Mohiuddin"
+        given-names: "Nick"
+      - family-names: "Poon"
+        given-names: "Susie"
+      - family-names: "Berral"
+        given-names: "Josep Ll."
+    title: "Carbon-Aware Computing for Datacenters"
+    year: 2022
+    journal: "IEEE Transactions on Sustainable Computing"
