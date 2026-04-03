@@ -1,3 +1,13 @@
+---
+title: Carbon-Aware Cloud Workload Scheduler
+emoji: 🌱
+colorFrom: green
+colorTo: blue
+sdk: docker
+pinned: false
+license: mit
+---
+
 # 🌱 Carbon-Aware Cloud Workload Scheduler
 
 > **Production-level OpenEnv environment for AI-driven carbon-aware scheduling**  
@@ -24,28 +34,227 @@ A **research-grade** carbon-aware job scheduler that:
 
 ## 🚀 Quick Start
 
+### 🎯 Two Ways to Run
+
+Choose your workflow based on your needs:
+
+---
+
+### Option 1: 🎨 Interactive Web UI (Recommended!)
+
+**Best for:** Judges, demos, exploration, visual analysis
+
 ```bash
-# Install
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# Run demo (all optimizers, all difficulty levels)
+# 2. Launch web dashboard
+streamlit run app.py
+
+# Opens at http://localhost:8501
+```
+
+**What you get:**
+- 📊 Interactive Gantt charts with drag/zoom
+- 🌍 Real-time carbon intensity graphs
+- 🎨 Priority color coding (red → gray)
+- 🤔 Expandable "Why this decision?" explanations
+- 📈 Live performance metrics dashboard
+- 🔄 Compare multiple optimizers side-by-side
+- 💾 Download results as JSON
+
+**Workflow:**
+1. Select task difficulty (Easy/Medium/Hard)
+2. Choose optimizer (Greedy/ILP)
+3. Toggle real carbon data on/off
+4. Click "Run Scheduler"
+5. Explore interactive visualizations
+6. Read AI explanations for each job
+7. Download results
+
+---
+
+### Option 2: 💻 Command Line (Programmatic)
+
+**Best for:** Automation, testing, integration, research
+
+#### A. Run Complete Demo
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run all optimizers on all tasks
 python main.py
-
-# Run with real carbon data
-python inference_demo.py medium greedy
-
-# Test with AI agent (requires OpenAI API key)
-export OPENAI_API_KEY="your-key"
-python inference.py medium
 ```
 
 **Output:**
 ```
-Score: 0.7000 (70% optimal)
-Carbon: 7,321 gCO2 (23% reduction vs baseline)
-Jobs: 7/7 scheduled (100% completion)
-Time: 0.01s
+======================================================================
+CARBON-AWARE CLOUD WORKLOAD SCHEDULER
+======================================================================
+
+TASK: EASY
+  Greedy (Deadline): 1.0000 | 618 gCO2 | 0 misses
+  Greedy (Priority): 1.0000 | 618 gCO2 | 0 misses
+  ILP (Optimal):     1.0000 | 618 gCO2 | 0 misses
+
+TASK: MEDIUM
+  Greedy (Deadline): 1.0000 | 1,565 gCO2 | 0 misses
+  ILP (Optimal):     1.0000 | 1,565 gCO2 | 0 misses
+
+TASK: HARD
+  Greedy (Priority): 1.0000 | 2,786 gCO2 | 12/12 jobs
 ```
+
+#### B. Run Specific Optimizer
+```bash
+# Run with built-in optimizer
+python inference_demo.py <task> <optimizer>
+
+# Examples:
+python inference_demo.py easy greedy
+python inference_demo.py medium ilp
+python inference_demo.py hard priority
+```
+
+**Available optimizers:**
+- `greedy` - Deadline-first (fast)
+- `priority` - Priority-first
+- `carbon` - Carbon-first
+- `ilp` - Optimal (slower)
+
+#### C. Run with AI Agent (LLM)
+```bash
+# Set API key
+export OPENAI_API_KEY="your-key"
+export MODEL_NAME="gpt-4"  # optional
+
+# Run inference
+python inference.py medium
+
+# Output saved to results_medium.json
+```
+
+**Output format:**
+```json
+{
+  "task": "medium",
+  "score": 0.7000,
+  "grader_score": 0.7000,
+  "metrics": {
+    "total_carbon_gco2": 1565,
+    "completion_rate": 1.0,
+    "deadline_misses": 0
+  },
+  "schedule": [
+    {"job_id": 1, "start_time": 6},
+    {"job_id": 2, "start_time": 9}
+  ]
+}
+```
+
+#### D. Visualize Results (ASCII)
+```bash
+# Generate Gantt chart
+python visualize.py medium
+
+# Output:
+# Job Schedule (Medium Task)
+# ════════════════════════════════════════
+# Job 1 [████████] (6→10) Priority:5
+# Job 2 [   ███████] (9→12) Priority:4
+```
+
+#### E. Compare Optimizers
+```bash
+# Side-by-side comparison
+python compare_optimizers.py medium
+
+# Output:
+# Optimizer Comparison (Medium Task)
+# ════════════════════════════════════════
+# Greedy:  1.0000 | 1,565 gCO2 | 0.01s
+# ILP:     1.0000 | 1,565 gCO2 | 0.15s
+# Recommendation: Use Greedy (faster, same score)
+```
+
+#### F. Run Tests
+```bash
+# Validate OpenEnv compliance
+python test_submission.py
+
+# Output:
+# Phase 1: ✅ PASS
+# Phase 2: ✅ PASS
+# Phase 3: ✅ PASS
+```
+
+---
+
+### 🐳 Docker Deployment
+
+**For Hugging Face Spaces or production:**
+
+```bash
+# Build image
+docker build -t carbon-scheduler .
+
+# Run with UI (Hugging Face mode)
+docker run -p 7860:7860 carbon-scheduler
+
+# Run demo (override CMD)
+docker run carbon-scheduler python main.py
+
+# Run specific task
+docker run carbon-scheduler python inference_demo.py medium greedy
+
+# Interactive shell
+docker run -it carbon-scheduler bash
+```
+
+---
+
+### 📊 Quick Comparison
+
+| Feature | Web UI | Command Line |
+|---------|--------|--------------|
+| **Visual charts** | ✅ Interactive | ❌ ASCII only |
+| **Real-time feedback** | ✅ Yes | ❌ No |
+| **Batch processing** | ❌ Manual | ✅ Scriptable |
+| **Explanations** | ✅ Expandable | ✅ Text output |
+| **Export results** | ✅ JSON download | ✅ JSON files |
+| **Speed** | Medium | Fast |
+| **Best for** | Demos, judges | Automation, CI/CD |
+
+---
+
+### 🎯 Recommended Workflows
+
+**For Competition Judges:**
+```bash
+streamlit run app.py
+# → Interactive exploration of all features
+```
+
+**For Researchers:**
+```bash
+python main.py > results.txt
+# → Batch test all optimizers
+```
+
+**For Integration:**
+```python
+from env.scheduler_env import SchedulerEnv
+from optimizer.greedy import GreedyOptimizer
+
+env = SchedulerEnv(config, seed=42)
+obs = env.reset()
+optimizer = GreedyOptimizer(obs)
+action = optimizer.solve()
+obs, reward, done, info = env.step(action)
+```
+
+---
 
 ---
 
@@ -257,17 +466,46 @@ See [RESEARCH.md](RESEARCH.md) for full mathematical treatment and validation.
 
 ## 🐳 Docker Deployment
 
+### Quick Start
+
 ```bash
-# Build
+# Build image
 docker build -t carbon-scheduler .
 
-# Run demo
-docker run carbon-scheduler
-
-# Run with API key
-docker run -e ELECTRICITYMAP_API_KEY="your-key" \
-  carbon-scheduler python inference_demo.py medium greedy
+# Run with UI (default - for Hugging Face Spaces)
+docker run -p 7860:7860 carbon-scheduler
+# Access at: http://localhost:7860
 ```
+
+### Alternative Commands
+
+```bash
+# Run main demo (all optimizers, all tasks)
+docker run carbon-scheduler python main.py
+
+# Run specific task with optimizer
+docker run carbon-scheduler python inference_demo.py medium greedy
+
+# Run with AI agent (requires API key)
+docker run -e OPENAI_API_KEY="your-key" \
+  carbon-scheduler python inference.py medium
+
+# Run tests
+docker run carbon-scheduler python test_submission.py
+
+# Interactive shell
+docker run -it carbon-scheduler bash
+```
+
+### For Hugging Face Spaces
+
+The Dockerfile is pre-configured for Hugging Face deployment:
+- Exposes port 7860
+- Runs Streamlit UI by default
+- Includes all dependencies
+- Uses Python 3.11-slim for efficiency
+
+See `DEPLOYMENT.md` for complete deployment guide.
 
 ---
 

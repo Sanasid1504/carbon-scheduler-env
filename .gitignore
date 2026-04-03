@@ -21,10 +21,12 @@ wheels/
 *.egg
 
 # Virtual environments
-venv/
 env/
+venv/
 ENV/
-.venv
+env.bak/
+venv.bak/
+.venv/
 
 # IDE
 .vscode/
@@ -32,22 +34,20 @@ ENV/
 *.swp
 *.swo
 *~
+.DS_Store
 
-# Results and outputs
+# Results and logs
 results_*.json
-results/
 *.log
-output/
-*.csv
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
 
 # OS
-.DS_Store
 Thumbs.db
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Docker
-*.tar

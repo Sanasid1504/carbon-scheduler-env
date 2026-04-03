@@ -24,9 +24,14 @@ ENV OPENAI_API_KEY=""
 ENV API_BASE_URL="https://api.openai.com/v1"
 ENV MODEL_NAME="gpt-4"
 
-# Default command: run main demo
-CMD ["python", "main.py"]
+# Expose Streamlit port for Hugging Face Spaces
+EXPOSE 7860
 
-# Alternative commands:
+# Run Streamlit UI (for Hugging Face Spaces deployment)
+CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.address=0.0.0.0"]
+
+# Alternative commands for local testing:
+# Run main demo: docker run carbon-scheduler python main.py
 # Run inference: docker run -e OPENAI_API_KEY=xxx carbon-scheduler python inference.py medium
 # Interactive: docker run -it carbon-scheduler bash
+
