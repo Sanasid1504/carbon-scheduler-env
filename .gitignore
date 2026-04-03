@@ -20,8 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environments
-env/
+# Virtual environments (NOT the env/ package — that's source code!)
 venv/
 ENV/
 env.bak/
