@@ -24,14 +24,15 @@ ENV API_BASE_URL="https://api.openai.com/v1"
 ENV MODEL_NAME="gpt-4"
 # HF_TOKEN should be set at runtime (no default)
 
-# Expose Streamlit port for Hugging Face Spaces
+# Expose port for Hugging Face Spaces
 EXPOSE 7860
 
-# Run Streamlit UI (for Hugging Face Spaces deployment)
-CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.address=0.0.0.0"]
+# Run FastAPI server (for OpenEnv API compliance)
+CMD ["python", "api_server.py"]
 
-# Alternative commands for local testing:
+# Alternative commands:
+# Run Streamlit UI: CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.address=0.0.0.0"]
 # Run main demo: docker run carbon-scheduler python main.py
-# Run inference: docker run -e OPENAI_API_KEY=xxx carbon-scheduler python inference.py medium
+# Run inference: docker run -e HF_TOKEN=xxx carbon-scheduler python inference.py medium
 # Interactive: docker run -it carbon-scheduler bash
 
