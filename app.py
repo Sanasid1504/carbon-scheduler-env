@@ -1,20 +1,28 @@
-"""
-🌱 Carbon-Aware Cloud Workload Scheduler - Interactive Dashboard
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-Beautiful, clean UI showcasing all judge criteria:
-✓ Timeline Gantt chart
-✓ Carbon intensity graph  
-✓ Priority color coding
-✓ Explainable AI decisions
-✓ Agent integration
-✓ Performance metrics
 """
+EcoCloud – Carbon‑Aware Cloud Workload Scheduler
+------------------------------------------------
+Fully integrated UI (black‑navy + glass), modular back‑end (openenv, optimizer,
+metrics, grading, explainable AI).
+"""
+
+# ----------------------------------------------------------------------
+# Imports
+# ----------------------------------------------------------------------
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import yaml
-import json
+import json, yaml, random
+from dataclasses import dataclass
+from typing import List, Dict
+from collections import Counter
+
+# ----------------------------------------------------------------------
+# Backend modules
+# ----------------------------------------------------------------------
 from env.scheduler_env import SchedulerEnv
 from optimizer.greedy import GreedyOptimizer, PriorityGreedyOptimizer, CarbonFirstOptimizer
 from optimizer.ilp_solver import ILPOptimizer
@@ -22,734 +30,1155 @@ from metrics.analytics import SchedulerMetrics, compute_score
 from explain.reasoning import ScheduleExplainer
 from grader import grade_task
 
+# ----------------------------------------------------------------------
+# Design tokens (black + navy palette – blue priorities)
+# ----------------------------------------------------------------------
+PALETTE = dict(
+    # Core dark theme
+    bg="#000000",
+    card="#111111",
+    border="#333333",
+    navy="#001F3F",
+    navy_soft="#003366",
+    white="#FFFFFF",
+    steel="#CCCCCC",
+    black="#000000",
+    # Priority colours – dark‑to‑light blue
+    priority_5="#001F3F",
+    priority_4="#003366",
+    priority_3="#004A99",
+    priority_2="#66CCFF",
+    priority_1="#99CCFF",
+)
+PALETTE["mint"]       = PALETTE["navy"]
+PALETTE["mint_soft"]  = PALETTE["navy_soft"]
+PALETTE["amber"]      = PALETTE["priority_4"]
+PALETTE["rose"]       = PALETTE["priority_5"]
+PALETTE["sky"]        = PALETTE["priority_2"]
+
+# ----------------------------------------------------------------------
+# Priority colour mapping & helper for text colour
+# ----------------------------------------------------------------------
+PRIORITY_COLORS = {
+    5: PALETTE["priority_5"],
+    4: PALETTE["priority_4"],
+    3: PALETTE["priority_3"],
+    2: PALETTE["priority_2"],
+    1: PALETTE["priority_1"],
+}
+PRIORITY_LABELS = {
+    5: "Critical",
+    4: "High",
+    3: "Medium",
+    2: "Low",
+    1: "Minimal",
+}
+# extra colour palette for the four hero‑stats
+STAT_COLORS = {
+    "green":      "#28a745",
+    "lightgreen": "#5cb85c",
+    "yellow":     "#ffc107",
+    "red":        "#dc3545",
+}
+def priority_text_color(p: int) -> str:
+    """Return a contrasting text colour for a priority badge."""
+    return PALETTE["white"] if p >= 3 else PALETTE["black"]
+
+# ----------------------------------------------------------------------
 # Page config
+# ----------------------------------------------------------------------
 st.set_page_config(
-    page_title="Carbon-Aware Scheduler",
-    page_icon="🌱",
+    page_title="EcoCloud · Carbon‑Aware Scheduler",
+    page_icon="🌿",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
-# Enhanced CSS for beautiful, elegant UI
-st.markdown("""
-<style>
-    /* Main header styling */
-    .main-header {
-        font-size: 2.8rem;
-        font-weight: 700;
-        text-align: center;
-        padding: 1.5rem 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 0.5rem;
-    }
-    
-    .subtitle {
-        text-align: center;
-        opacity: 0.7;
-        font-size: 1.1rem;
-        margin-bottom: 2rem;
-    }
-    
-    /* Metric cards */
-    .metric-card {
-        background: rgba(255, 255, 255, 0.05);
-        border-radius: 12px;
-        padding: 1.5rem;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        transition: transform 0.2s, box-shadow 0.2s;
-    }
-    
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-    }
-    
-    .metric-label {
+# ----------------------------------------------------------------------
+# Global CSS
+# ----------------------------------------------------------------------
+st.markdown(
+    f"""
+    <style>
+    /* ===== BASE PAGE ===== */
+    html, body, [class*="css"] {{
+        max-width: 900px !important;
+        font-family: 'Montserrat', sans-serif !important;
+        background-color: {PALETTE['bg']} !important;
+        color: {PALETTE['white']} !important;
+        font-size: 15px;
+    }}
+
+    /* ===== SIDEBAR (glass) ===== */
+    [data-testid="stSidebar"] {{
+        background: rgba(255,255,255,0.15) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-right: 1px solid rgba(255,255,255,0.25);
+        padding-top: 0.5rem;
+    }}
+    [data-testid="stSidebar"] * {{
+        color: {PALETTE['white']} !important;
+    }}
+    [data-testid="stSidebar"] .stSelectbox label,
+    [data-testid="stSidebar"] .stCheckbox label {{
+        color: {PALETTE['navy']} !important;
         font-size: 0.85rem;
-        opacity: 0.7;
+        font-weight: 600;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 0.5rem;
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        margin-bottom: 0.25rem;
-    }
-    
-    .metric-subtitle {
-        font-size: 0.9rem;
-        opacity: 0.6;
-    }
-    
-    /* Status boxes */
-    .status-excellent {
-        background: linear-gradient(135deg, rgba(40, 167, 69, 0.2) 0%, rgba(40, 167, 69, 0.05) 100%);
-        border-left: 4px solid #28a745;
-        padding: 1rem 1.5rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    
-    .status-good {
-        background: linear-gradient(135deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.05) 100%);
-        border-left: 4px solid #ffc107;
-        padding: 1rem 1.5rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    
-    .status-warning {
-        background: linear-gradient(135deg, rgba(220, 53, 69, 0.2) 0%, rgba(220, 53, 69, 0.05) 100%);
-        border-left: 4px solid #dc3545;
-        padding: 1rem 1.5rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-    }
-    
-    /* Carbon rating colors */
-    .carbon-excellent {
-        color: #28a745;
-        font-weight: 700;
-    }
-    
-    .carbon-good {
-        color: #ffc107;
-        font-weight: 700;
-    }
-    
-    .carbon-high {
-        color: #dc3545;
-        font-weight: 700;
-    }
-    
-    /* Priority legend */
-    .priority-badge {
-        display: inline-block;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        color: white;
-        font-weight: 600;
-        text-align: center;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        transition: transform 0.2s;
-    }
-    
-    .priority-badge:hover {
-        transform: scale(1.05);
-    }
-    
-    /* Section headers */
-    .section-header {
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin: 2rem 0 1rem 0;
-        padding-bottom: 0.5rem;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    /* Divider */
-    .elegant-divider {
-        height: 2px;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-        margin: 2rem 0;
-    }
-</style>
-""", unsafe_allow_html=True)
+    }}
 
-# Priority colors (clean palette)
-PRIORITY_COLORS = {
-    5: '#e74c3c',  # High - Red
-    4: '#e67e22',  # Medium-High - Orange
-    3: '#f39c12',  # Medium - Yellow
-    2: '#3498db',  # Medium-Low - Blue
-    1: '#95a5a6',  # Low - Gray
-}
+    /* ===== NAV‑BAR ===== */
+    .nav-bar {{
+        width: 105%;
+        margin-left: -2rem;
+        margin-right: -2rem;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 2rem;
+        padding: 1.5rem 4rem;
+        background: {PALETTE['navy_soft']};
+        border-bottom: 1px solid {PALETTE['border']};
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    }}
+    .nav-brand {{display:flex;align-items:center;gap:0.8rem;}}
+    .nav-logo {{
+        width:64px;height:64px;
+        background: linear-gradient(135deg,{PALETTE['navy']},{PALETTE['navy_soft']});
+        border-radius:12px;
+        display:flex;align-items:center;justify-content:center;
+        font-size:1.8rem;color:{PALETTE['white']};
+    }}
+    .nav-title {{font-size:2rem;font-weight:800;color:{PALETTE['white']};}}
+    .nav-subtitle {{font-size:0.7rem;color:{PALETTE['steel']};font-weight:500;}}
+    .nav-pill {{background:{PALETTE['navy']};color:{PALETTE['white']};
+        font-size:0.75rem;font-weight:700;padding:0.5rem 0.9rem;
+        border-radius:99px;letter-spacing:0.05em;text-transform:uppercase;}}
 
-def get_carbon_rating(carbon_gco2, num_jobs):
-    """Return color class and rating for carbon emissions."""
-    avg_per_job = carbon_gco2 / num_jobs if num_jobs > 0 else 0
-    
-    if avg_per_job < 200:
-        return "carbon-low", "Excellent", "🌟"
-    elif avg_per_job < 250:
-        return "carbon-medium", "Good", "✓"
-    else:
-        return "carbon-high", "High", "⚠"
+    /* ===== HERO (header) ===== */
+    .hero {{
+        background: linear-gradient(135deg,{PALETTE['navy']} 0%,#001130 55%,#00081a 100%);
+        border-radius:16px;
+        padding:3rem 3rem;
+        margin:2rem 0;
+        position:relative;overflow:hidden;
+        color:{PALETTE['white']};
+    }}
+    .hero-eyebrow {{font-size:0.7rem;font-weight:700;letter-spacing:0.15em;
+        text-transform:uppercase;color:{PALETTE['navy_soft']};margin-bottom:0.75rem;}}
+    .hero-title {{font-size:2.6rem;font-weight:800;line-height:1.15;
+        letter-spacing:-0.03em;margin-bottom:0.75rem;}}
+    .hero-title span {{color:{PALETTE['navy_soft']};}}
+    .hero-body {{font-size:0.95rem;color:{PALETTE['steel']};font-weight:500;
+        max-width:520px;line-height:1.65;}}
+    .hero-stats {{display:flex;gap:2rem;margin-top:2rem;flex-wrap:wrap;}}
+    .hero-stat {{display:flex;flex-direction:column;align-items:flex-start;gap:0.25rem;}}
+    .hero-stat-val {{
+        font-size:1.6rem;
+        font-weight:800;
+        letter-spacing:-0.02em;
+    }}
+    .hero-stat-val.green      {{color:{STAT_COLORS['green']};}}
+    .hero-stat-val.lightgreen {{color:{STAT_COLORS['lightgreen']};}}
+    .hero-stat-val.yellow    {{color:{STAT_COLORS['yellow']};}}
+    .hero-stat-val.red       {{color:{STAT_COLORS['red']};}}
+    .hero-stat-lbl {{
+        font-size:0.7rem;
+        color:{PALETTE['steel']};
+        font-weight:600;
+        text-transform:uppercase;
+        letter-spacing:0.06em;
+        margin-top:0.1rem;
+    }}
 
+    /* ===== SECTION HEADER ===== */
+    .section-header {{
+        display:flex;align-items:center;gap:0.6rem;
+        font-size:1rem;font-weight:700;color:{PALETTE['white']};
+        letter-spacing:-0.01em;margin:2rem 0 1rem 0;
+        padding-bottom:0.65rem;border-bottom:2px solid {PALETTE['border']};
+    }}
+    .section-icon {{
+        width:28px;height:28px;background:{PALETTE['navy_soft']};
+        border-radius:7px;display:flex;align-items:center;justify-content:center;
+        font-size:0.85rem;color:{PALETTE['white']};
+    }}
+
+    /* ===== KPI CARD ===== */
+    .kpi-card {{
+        background:rgba(255,255,255,0.85);
+        border:1px solid rgba(255,255,255,0.2);
+        border-radius:12px;padding:1.4rem 1.5rem;
+        color:{PALETTE['white']};box-shadow:0 1px 3px rgba(0,0,0,0.4);
+        backdrop-filter:blur(8px);transition:box-shadow 0.2s,transform 0.2s;
+        height:100%;
+    }}
+    .kpi-card:hover {{transform:translateY(-2px);box-shadow:0 8px 16px rgba(0,0,0,0.2);}}
+    .kpi-label {{font-size:0.68rem;font-weight:700;color:{PALETTE['navy']};
+        letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.6rem;}}
+    .kpi-value {{font-size:2rem;font-weight:800;color:{PALETTE['navy']};
+        letter-spacing:-0.03em;line-height:1;margin-bottom:0.35rem;}}
+    .kpi-sub   {{font-size:0.78rem;color:{PALETTE['navy']};font-weight:500;}}
+    .kpi-badge {{display:inline-block;padding:0.18rem 0.55rem;
+        border-radius:999px;font-size:0.65rem;font-weight:700;letter-spacing:0.05em;margin-top:0.4rem;}}
+    .badge-mint  {{background:{PALETTE['navy_soft']};color:{PALETTE['white']};}}
+    .badge-amber {{background:#331A00;color:#FFAA00;}}
+    .badge-rose  {{background:#330000;color:#FF5555;}}
+    .badge-sky   {{background:#001A33;color:#66CCFF;}}
+
+    /* ===== STATUS BOXES ===== */
+    .status-excellent {{background:linear-gradient(135deg,rgba(40,167,69,0.2) 0%,rgba(40,167,69,0.05)100%);
+        border-left:4px solid #28a745;padding:1rem 1.5rem;border-radius:8px;}}
+    .status-good      {{background:linear-gradient(135deg,rgba(255,193,7,0.2) 0%,rgba(255,193,7,0.05)100%);
+        border-left:4px solid #ffc107;padding:1rem 1.5rem;border-radius:8px;}}
+    .status-warning   {{background:linear-gradient(135deg,rgba(220,53,69,0.2) 0%,rgba(220,53,69,0.05)100%);
+        border-left:4px solid #dc3545;padding:1rem 1.5rem;border-radius:8px;}}
+    .status-excellent, .status-good, .status-warning {{color:#fff;}}
+
+    /* ===== PRIORITY BADGE (fixed width) ===== */
+    .priority-box {{
+        width:100%;               /* full column width */
+        padding:1rem;
+        border-radius:8px;
+        text-align:center;
+        box-shadow:0 4px 8px rgba(0,0,0,0.2);
+        transition:transform 0.2s;
+        margin-bottom:0.6rem;
+    }}
+    .priority-box:hover {{transform:scale(1.03);}}
+    .priority-circle {{font-size:1rem;margin-bottom:0.25rem;}}
+    .priority-label  {{font-weight:800;font-size:0.9rem;}}
+    .priority-desc   {{font-size:1.2rem;font-weight:600;margin-top:0.15rem;
+        color:{PALETTE['steel']};}}
+
+    /* ===== EXPANDERS ===== */
+    div.stExpander {{
+        background:{PALETTE['card']};
+        border:1px solid {PALETTE['border']};
+        border-radius:10px;
+        box-shadow:0 1px 3px rgba(0,0,0,0.4);
+        margin-bottom:0.5rem;
+    }}
+    div.stExpander summary {{
+        font-size:0.82rem;font-weight:600;color:{PALETTE['white']};
+    }}
+
+    /* ===== MISC ===== */
+    stSelectbox > div > div {{
+        font-family:'Montserrat',sans-serif;font-size:0.85rem;color:{PALETTE['white']};
+    }}
+    footer, #MainMenu {{visibility:hidden;}}
+    .block-container {{
+        padding-top:1.5rem !important;
+        padding-bottom:2rem !important;
+        max-width:100% !important;
+        padding-left:2rem !important;
+        padding-right:2rem !important;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ----------------------------------------------------------------------
+# Helper to load openenv.yaml
+# ----------------------------------------------------------------------
 @st.cache_data
-def load_config():
+def load_config() -> Dict:
+    """Load the OpenEnv configuration file."""
     with open("openenv.yaml") as f:
         return yaml.safe_load(f)
 
+# ----------------------------------------------------------------------
+# Carbon status helper
+# ----------------------------------------------------------------------
+def carbon_status(carbon_gco2: int, num_jobs: int):
+    """Return CSS colour class / name / icon for overall carbon."""
+    avg = carbon_gco2 / num_jobs if num_jobs > 0 else 0
+    if avg < 200:
+        return "mint", "Excellent", "🌟"
+    elif avg < 250:
+        return "amber", "Good", "✓"
+    else:
+        return "rose", "High", "⚠"
+
+# ----------------------------------------------------------------------
+# Plotting helpers (Gantt, carbon, utilisation, …)
+# ----------------------------------------------------------------------
 def create_gantt_chart(obs, action):
-    """Interactive Gantt chart with priority colors."""
+    """Gantt chart – bars coloured by priority."""
     job_map = {job.id: job for job in obs.jobs}
-    gantt_data = []
-    
+    rows = []
     for item in action.schedule:
-        if item.job_id in job_map:
-            job = job_map[item.job_id]
-            start = item.start_time
-            end = start + job.duration
-            carbon = sum(obs.carbon_intensity[start:end])
-            
-            gantt_data.append({
-                'Job': f'Job {job.id}',
-                'Start': start,
-                'Finish': end,
-                'Priority': job.priority,
-                'Deadline': job.deadline,
-                'Carbon': carbon,
-                'Duration': job.duration
-            })
-    
-    if not gantt_data:
+        job = job_map.get(item.job_id)
+        if not job:
+            continue
+        s, e = item.start_time, item.start_time + job.duration
+        rows.append({
+            "Job": f"Job {job.id}",
+            "Start": s,
+            "Finish": e,
+            "Priority": job.priority,
+            "Deadline": job.deadline,
+            "Carbon": sum(obs.carbon_intensity[s:e]),
+        })
+    if not rows:
         return None
-    
-    df = pd.DataFrame(gantt_data)
+
+    df = pd.DataFrame(rows)
     fig = go.Figure()
-    
-    for _, row in df.iterrows():
-        met_deadline = row['Finish'] <= row['Deadline']
-        color = PRIORITY_COLORS.get(row['Priority'], '#95a5a6')
-        
-        fig.add_trace(go.Bar(
-            name=row['Job'],
-            x=[row['Finish'] - row['Start']],
-            y=[row['Job']],
-            orientation='h',
-            marker=dict(color=color, line=dict(color='white', width=1)),
-            base=row['Start'],
-            text=f"P{row['Priority']}",
-            textposition='inside',
-            hovertemplate=(
-                f"<b>{row['Job']}</b><br>"
-                f"Priority: {row['Priority']}<br>"
-                f"Time: {row['Start']} → {row['Finish']}<br>"
-                f"Deadline: {row['Deadline']}<br>"
-                f"Carbon: {row['Carbon']:,} gCO2<br>"
-                f"Status: {'✓ Met' if met_deadline else '✗ Missed'}<br>"
-                "<extra></extra>"
+    for _, r in df.iterrows():
+        met_deadline = r["Finish"] <= r["Deadline"]
+        bar_color = PRIORITY_COLORS.get(r["Priority"], PALETTE["steel"])
+        fig.add_trace(
+            go.Bar(
+                name=r["Job"],
+                y=[r["Job"]],
+                x=[r["Finish"] - r["Start"]],
+                base=r["Start"],
+                orientation="h",
+                marker=dict(
+                    color=bar_color,
+                    opacity=0.88,
+                    line=dict(color="#111111", width=1),   # thin dark border for contrast
+                ),
+                text=f"P{r['Priority']}",
+                textposition="inside",
+                textfont=dict(family="Montserrat", color="white", size=10),
+                hovertemplate=(
+                    f"<b>{r['Job']}</b><br>"
+                    f"Priority: {r['Priority']} ({PRIORITY_LABELS.get(r['Priority'], '')})<br>"
+                    f"Slot: {r['Start']} → {r['Finish']}<br>"
+                    f"Deadline: {r['Deadline']}<br>"
+                    f"Carbon: {r['Carbon']:,} gCO₂<br>"
+                    f"Status: {'✓ On Time' if met_deadline else '✗ Overdue'}<extra></extra>"
+                ),
             )
-        ))
-        
-        # Deadline marker
-        fig.add_vline(
-            x=row['Deadline'],
-            line_dash="dot",
-            line_color="green" if met_deadline else "red",
-            opacity=0.4
         )
-    
+        # deadline marker (green if on‑time, red if missed)
+        fig.add_vline(
+            x=r["Deadline"],
+            line_dash="dot",
+            line_color=PALETTE["mint"] if met_deadline else PALETTE["rose"],
+            line_width=1.2,
+            opacity=0.5,
+        )
     fig.update_layout(
         title="📊 Job Schedule Timeline",
         xaxis_title="Time Slot",
         yaxis_title="",
         showlegend=False,
-        height=350,
+        height=370,
         margin=dict(l=80, r=20, t=40, b=40),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
-    
     return fig
 
-def create_carbon_chart(carbon_intensity):
-    """Clean carbon intensity visualization."""
-    df = pd.DataFrame({
-        'Time': list(range(len(carbon_intensity))),
-        'Carbon (gCO2/kWh)': carbon_intensity
-    })
-    
-    fig = px.line(
-        df,
-        x='Time',
-        y='Carbon (gCO2/kWh)',
-        title='🌍 Carbon Intensity Profile',
-        markers=True
+def create_carbon_chart(intensity):
+    n = len(intensity)
+    avg = sum(intensity) / n
+    df = pd.DataFrame({"Time": range(n), "gCO₂/kWh": intensity})
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=df["Time"],
+            y=df["gCO₂/kWh"],
+            mode="lines+markers",
+            fill="tozeroy",
+            fillcolor="rgba(0,31,63,0.08)",
+            line=dict(color=PALETTE["navy_soft"], width=2.5),
+            marker=dict(size=5, color=PALETTE["navy_soft"]),
+            name="Carbon Intensity",
+            hovertemplate="Slot %{x}: %{y:.0f} gCO₂/kWh<extra></extra>",
+        )
     )
-    
-    fig.update_traces(
-        line_color='#27ae60',
-        line_width=2,
-        marker=dict(size=4)
-    )
-    
-    # Add threshold line
-    avg = sum(carbon_intensity) / len(carbon_intensity)
     fig.add_hline(
         y=avg,
         line_dash="dash",
-        line_color="gray",
-        annotation_text=f"Avg: {avg:.0f}",
-        annotation_position="right"
+        line_color=PALETTE["steel"],
+        annotation_text=f"Avg {avg:.0f}",
+        annotation_font_size=10,
+        annotation_position="top right",
     )
-    
     fig.update_layout(
+        title="🌍 Carbon Intensity Profile",
+        xaxis_title="Time Slot",
+        yaxis_title="gCO₂/kWh",
         height=300,
+        showlegend=False,
         margin=dict(l=60, r=20, t=40, b=40),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
-    
     return fig
 
 def create_utilization_chart(obs, action):
-    """Resource utilization over time."""
     job_map = {job.id: job for job in obs.jobs}
-    utilization = [0] * obs.time_horizon
-    
+    util = [0] * obs.time_horizon
     for item in action.schedule:
-        if item.job_id in job_map:
-            job = job_map[item.job_id]
-            for t in range(item.start_time, min(item.start_time + job.duration, obs.time_horizon)):
-                utilization[t] += 1
-    
-    df = pd.DataFrame({
-        'Time': list(range(obs.time_horizon)),
-        'Jobs': utilization
-    })
-    
-    fig = px.bar(
-        df,
-        x='Time',
-        y='Jobs',
-        title='⚡ Capacity Utilization',
-        color='Jobs',
-        color_continuous_scale='Blues'
+        job = job_map.get(item.job_id)
+        if not job:
+            continue
+        for t in range(item.start_time,
+                       min(item.start_time + job.duration, obs.time_horizon)):
+            util[t] += 1
+    df = pd.DataFrame({"Time": range(obs.time_horizon), "Jobs Active": util})
+    colors = [PALETTE["rose"] if v > obs.capacity else PALETTE["sky"] for v in util]
+    fig = go.Figure(
+        go.Bar(
+            x=df["Time"],
+            y=df["Jobs Active"],
+            marker_color=colors,
+            marker_line_width=0,
+            hovertemplate="Slot %{x}: %{y} jobs<extra></extra>",
+        )
     )
-    
     fig.add_hline(
         y=obs.capacity,
         line_dash="dash",
-        line_color="red",
-        annotation_text=f"Capacity: {obs.capacity}",
-        annotation_position="right"
+        line_color=PALETTE["rose"],
+        annotation_text=f"Capacity {obs.capacity}",
+        annotation_font_size=10,
+        annotation_position="top right",
     )
-    
     fig.update_layout(
+        title="⚡ Capacity Utilisation by Slot",
+        xaxis_title="Time Slot",
+        yaxis_title="Concurrent Jobs",
         height=300,
+        showlegend=False,
         margin=dict(l=60, r=20, t=40, b=40),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        showlegend=False
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
-    
     return fig
 
-def main():
-    # Header
-    st.markdown('<h1 class="main-header">🌱 Carbon-Aware Cloud Workload Scheduler</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="subtitle">Intelligent Job Scheduling for Sustainable Computing</p>', unsafe_allow_html=True)
-    
-    # Sidebar
-    st.sidebar.title("⚙️ Configuration")
-    
-    config = load_config()
-    
-    # Task selection
-    task_name = st.sidebar.selectbox(
-        "📋 Task Difficulty",
-        ["easy", "medium", "hard"],
-        index=1
-    )
-    
-    task_info = config["tasks"][task_name]
-    st.sidebar.info(f"**Level {task_info['difficulty']}/3**\n\n{task_info['description']}")
-    
-    # Optimizer selection
-    optimizer_name = st.sidebar.selectbox(
-        "🧠 Optimizer",
-        ["Greedy (Deadline)", "Greedy (Priority)", "Greedy (Carbon)", "ILP (Optimal)"]
-    )
-    
-    # Real carbon data
-    use_real_carbon = st.sidebar.checkbox("🌍 Use Real Carbon Data", value=True)
-    
-    # Run button
-    if st.sidebar.button("🚀 Run Scheduler", type="primary", use_container_width=True):
-        with st.spinner("⏳ Scheduling jobs..."):
-            # Setup
-            task_config = task_info["config"]
-            env = SchedulerEnv(task_config, seed=42, use_real_carbon=use_real_carbon)
-            obs = env.reset()
-            
-            # Select optimizer
-            optimizer_map = {
-                "Greedy (Deadline)": GreedyOptimizer,
-                "Greedy (Priority)": PriorityGreedyOptimizer,
-                "Greedy (Carbon)": CarbonFirstOptimizer,
-                "ILP (Optimal)": ILPOptimizer
-            }
-            optimizer = optimizer_map[optimizer_name](obs)
-            action = optimizer.solve()
-            
-            # Execute
-            obs, reward, done, info = env.step(action)
-            
-            # Metrics
-            metrics = SchedulerMetrics(obs, action).compute_all_metrics()
-            score = compute_score(metrics)
-            
-            # Grader
-            action_dict = {
-                "schedule": [{"job_id": i.job_id, "start_time": i.start_time} for i in action.schedule]
-            }
-            grade = grade_task(task_name, action_dict)
-            
-            # Explanations
-            explainer = ScheduleExplainer(obs, action)
-            explanations = explainer.explain_all()
-            
-            # Store
-            st.session_state.update({
-                'obs': obs,
-                'action': action,
-                'reward': reward,
-                'metrics': metrics,
-                'score': score,
-                'grade': grade,
-                'explanations': explanations,
-                'optimizer_name': optimizer_name,
-                'action_dict': action_dict
-            })
-    
-    # Display results
-    if 'obs' in st.session_state:
-        obs = st.session_state.obs
-        action = st.session_state.action
-        reward = st.session_state.reward
-        metrics = st.session_state.metrics
-        score = st.session_state.score
-        grade = st.session_state.grade
-        explanations = st.session_state.explanations
-        
-        # Elegant divider
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        
-        # Performance Overview Section
-        st.markdown('<h2 class="section-header">📊 Performance Overview</h2>', unsafe_allow_html=True)
-        
-        # Get carbon rating
-        carbon_class, carbon_rating, carbon_icon = get_carbon_rating(
-            metrics['total_carbon_gco2'], 
-            metrics['jobs_total']
+def create_priority_donut(obs):
+    cnt = Counter(job.priority for job in obs.jobs)
+    labels = [f"P{p} {PRIORITY_LABELS[p]}" for p in sorted(cnt, reverse=True)]
+    values = [cnt[p] for p in sorted(cnt, reverse=True)]
+    colors = [PRIORITY_COLORS[p] for p in sorted(cnt, reverse=True)]
+    fig = go.Figure(
+        go.Pie(
+            labels=labels,
+            values=values,
+            hole=0.58,
+            marker=dict(colors=colors, line=dict(color="white", width=2)),
+            hovertemplate="%{label}: %{value} jobs (%{percent})<extra></extra>",
+            textfont=dict(family="Montserrat", size=10),
         )
-        
-        # Top row - Key metrics in elegant cards
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">🎯 Overall Score</div>
-                <div class="metric-value">{score:.1%}</div>
-                <div class="metric-subtitle">Target: 70%+</div>
+    )
+    fig.update_layout(
+        title="Job Priority Distribution",
+        height=300,
+        showlegend=True,
+        legend=dict(font=dict(family="Montserrat", size=10), orientation="v"),
+    )
+    return fig
+
+def create_carbon_savings_chart(metrics):
+    scheduled = metrics["total_carbon_gco2"]
+    baseline  = scheduled * 1.4
+    fig = go.Figure(
+        go.Bar(
+            x=["Optimised Schedule", "Baseline (No Optimisation)"],
+            y=[scheduled, baseline],
+            marker_color=[PALETTE["navy_soft"], PALETTE["rose"]],
+            text=[f"{scheduled:,.0f} gCO₂", f"{baseline:,.0f} gCO₂"],
+            textposition="outside",
+            textfont=dict(family="Montserrat", size=10, color=PALETTE["navy"]),
+            hovertemplate="%{x}: %{y:,.0f} gCO₂<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        title="Emission Reduction vs Baseline",
+        height=300,
+        margin=dict(l=50, r=20, t=40, b=40),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+    return fig
+
+# ----------------------------------------------------------------------
+# Sidebar rendering
+# ----------------------------------------------------------------------
+def render_sidebar():
+    """Sidebar UI – returns the four values used by `main()`."""
+    # ----- Header -------------------------------------------------
+    st.sidebar.markdown(
+        """
+        <div style="padding:1.2rem 0.5rem 0.5rem 0.5rem;">
+        <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.4rem;">
+        <div style="width:30px;height:30px;background:linear-gradient(135deg,#001F3F,#003366);
+        border-radius:7px;display:flex;align-items:center;justify-content:center;
+        font-size:0.95rem;color:#FFF;">🌿</div>
+        <span style="font-size:1.2rem;font-weight:800;color:#FFF;letter-spacing:-0.02em;">EcoCloud</span>
+        </div>
+        <div style="font-size:0.75rem;color:#AAA;font-weight:600;
+        letter-spacing:0.12em;text-transform:uppercase;margin-bottom:1.5rem;">
+        Scheduler Dashboard
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ----- Task difficulty -----------------------------------------
+    st.sidebar.markdown(
+        '<div style="font-size:0.78rem;color:#AAA;font-weight:700;'
+        'letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.5rem;">Task Difficulty</div>',
+        unsafe_allow_html=True,
+    )
+    task_name = st.sidebar.selectbox(
+        "", ["easy", "medium", "hard"], index=1, label_visibility="collapsed"
+    )
+    diff_meta = {
+        "easy": ("Level 1 / 3", "5 jobs · 24 slots · Introductory constraints"),
+        "medium": ("Level 2 / 3", "10 jobs · 48 slots · Mixed priorities & windows"),
+        "hard": ("Level 3 / 3", "20 jobs · 96 slots · Tight deadlines & spikes"),
+    }
+    lvl, desc = diff_meta[task_name]
+    st.sidebar.markdown(
+        f"""
+        <div class="glass-morph" style="
+        margin:0.5rem 0 1.2rem 0;
+        padding:0.75rem;
+        border-radius:12px;
+        background: rgba(255,255,255,0.15);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border:1px solid rgba(255,255,255,0.25);
+        box-shadow:0 8px 32px rgba(0,0,0,0.1);
+        ">
+        <div style="font-size:0.7rem;color:{PALETTE['white']};font-weight:700;
+            letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.3rem;">
+            {lvl}
+        </div>
+        <div style="font-size:0.78rem;color:{PALETTE['steel']};font-weight:500;
+            line-height:1.5;">
+            {desc}
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ----- Optimiser ----------------------------------------------
+    st.sidebar.markdown(
+        '<div style="font-size:0.78rem;color:#AAA;font-weight:700;'
+        'letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.5rem;">Optimiser</div>',
+        unsafe_allow_html=True,
+    )
+    optimizer_name = st.sidebar.selectbox(
+        "",
+        ["Greedy (Deadline)", "Greedy (Priority)", "Greedy (Carbon)", "ILP (Optimal)"],
+        label_visibility="collapsed",
+    )
+    optimizer_desc = {
+        "Greedy (Deadline)": "Schedules jobs solely to satisfy deadlines, ignoring quantity or priority.",
+        "Greedy (Priority)": "Highest‑priority jobs claim the earliest slots.",
+        "Greedy (Carbon)": "Fills low‑carbon windows before high‑carbon ones.",
+        "ILP (Optimal)": "Integer linear program for provably optimal results.",
+    }
+    st.sidebar.markdown(
+        f"""
+        <div style="font-size:0.75rem;color:{PALETTE['steel']};
+            margin:0.3rem 0 1.2rem 0;line-height:1.55;font-weight:500;">
+            {optimizer_desc[optimizer_name]}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ----- Carbon data ---------------------------------------------
+    st.sidebar.markdown(
+        '<div style="font-size:0.78rem;color:#AAA;font-weight:700;'
+        'letter-spacing:0.12em;text-transform:uppercase;margin-bottom:0.5rem;">Carbon Data</div>',
+        unsafe_allow_html=True,
+    )
+    use_real_carbon = st.sidebar.checkbox("Use live grid carbon intensity", value=True)
+
+    st.sidebar.markdown(
+        '<div style="height:1px;background:#333;margin:1.2rem 0;"></div>',
+        unsafe_allow_html=True,
+    )
+
+    # ----- Run button -----------------------------------------------
+    st.sidebar.markdown(
+        f"""
+        <style>
+        div.stButton > button:first-child {{
+            width:20rem;
+            padding:0.9rem 0;
+            border-radius:12px;
+            background:rgba(255,255,255,0.15);
+            color:{PALETTE['navy']};
+            font-weight:600;
+            border:1px solid rgba(255,255,255,0.25);
+            backdrop-filter:blur(8px);
+            -webkit-backdrop-filter:blur(8px);
+            box-shadow:0 8px 32px rgba(0,0,0,0.1);
+            cursor:pointer;
+            transition:all 0.2s ease-in-out;
+        }}
+        div.stButton > button:first-child:hover {{
+            background:rgba(255,255,255,0.25);
+        }}
+        div.stButton > button:first-child:active {{
+            background:rgba(255,255,255,0.35);
+            transform:translateY(1px);
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    run = st.sidebar.button("Run Scheduler", key="run_scheduler")
+
+    return task_name, optimizer_name, use_real_carbon, run
+
+# ----------------------------------------------------------------------
+# Nav‑bar rendering
+# ----------------------------------------------------------------------
+def render_navbar():
+    st.markdown(
+        """
+        <div class="nav-bar">
+        <div class="nav-brand">
+        <div class="nav-logo">🌿</div>
+        <div>
+        <div class="nav-title">EcoCloud</div>
+        <div class="nav-subtitle">Carbon‑Aware Scheduler</div>
+        </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;"></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# ----------------------------------------------------------------------
+# Welcome screen (hero + info cards)
+# ----------------------------------------------------------------------
+def render_welcome():
+    st.markdown(
+        """
+        <div class="hero">
+        <div class="hero-eyebrow">OpenEnv Hackathon 2026</div>
+        <div class="hero-title">Schedule Smarter.<br>Emit <span>Less Carbon.</span></div>
+        <div class="hero-body">
+        EcoCloud intelligently shifts cloud workloads into low‑carbon grid windows —
+        meeting every SLA deadline while dramatically cutting CO₂ emissions.
+        </div>
+
+        <!-- 4 coloured stats -->
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <div class="hero-stat-val green">20–40%</div>
+                <div class="hero-stat-lbl">Emission Reduction</div>
             </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">🌱 Carbon Emissions</div>
-                <div class="metric-value {carbon_class}">{metrics['total_carbon_gco2']:,}</div>
-                <div class="metric-subtitle">{carbon_icon} {carbon_rating} ({metrics['total_carbon_gco2'] // metrics['jobs_total']} gCO2/job)</div>
+            <div class="hero-stat">
+                <div class="hero-stat-val lightgreen">1%</div>
+                <div class="hero-stat-lbl">Global Electricity Use</div>
             </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            completion_pct = metrics['completion_rate'] * 100
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">✅ Job Completion</div>
-                <div class="metric-value">{metrics['jobs_scheduled']}/{metrics['jobs_total']}</div>
-                <div class="metric-subtitle">{completion_pct:.0f}% completed</div>
+            <div class="hero-stat">
+                <div class="hero-stat-val yellow">500K</div>
+                <div class="hero-stat-lbl">Tonnes CO₂ Saved / yr</div>
             </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            util_pct = metrics['average_utilization'] * 100
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">⚡ Utilization</div>
-                <div class="metric-value">{util_pct:.0f}%</div>
-                <div class="metric-subtitle">Avg capacity used</div>
+            <div class="hero-stat">
+                <div class="hero-stat-val red">3</div>
+                <div class="hero-stat-lbl">Major Cloud Providers</div>
             </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Second row - Detailed metrics
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">📅 Deadline Performance</div>
-                <div class="metric-value" style="font-size: 1.5rem;">{metrics['deadline_misses']}</div>
-                <div class="metric-subtitle">Missed deadlines</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">🚦 Capacity Violations</div>
-                <div class="metric-value" style="font-size: 1.5rem;">{metrics['capacity_violations']}</div>
-                <div class="metric-subtitle">Over-capacity events</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            high_priority = sum(1 for job in obs.jobs if job.priority >= 4)
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">⭐ High Priority Jobs</div>
-                <div class="metric-value" style="font-size: 1.5rem;">{high_priority}</div>
-                <div class="metric-subtitle">Priority 4-5</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            avg_carbon = metrics['average_carbon_per_job']
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">📉 Avg Carbon/Job</div>
-                <div class="metric-value" style="font-size: 1.5rem;">{avg_carbon:.0f}</div>
-                <div class="metric-subtitle">gCO2 per job</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Grader feedback with elegant styling
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        
-        if grade['score'] >= 0.8:
-            st.markdown(f'''
-            <div class="status-excellent">
-                <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem;">
-                    ✨ Excellent Performance
+        </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    # ------------------------------------------------------------------
+    # How‑It‑Works cards
+    # ------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="section-header"><div class="section-icon">◈</div> How It Works</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3 = st.columns(3)
+    cards = [
+        (
+            "#001F3F",
+            "#9ADDFF",
+            "◉",
+            "Real Carbon Data",
+            "Live grid intensity feeds from energy APIs show moment‑to‑moment CO₂ per kWh across time horizons."
+        ),
+        (
+            "#003366",
+            "#9ADDFF",
+            "◈",
+            "Intelligent Optimisers",
+            "Four algorithms — from fast greedy heuristics to exact ILP solvers — let you balance speed against optimality."
+        ),
+        (
+            "#001A33",
+            "#66CCFF",
+            "▣",
+            "Visual Analytics",
+            "Interactive charts and utilisation heatmaps explain every scheduling decision."
+        ),
+    ]
+    for col, (bg, accent, icon, title, body) in zip([c1, c2, c3], cards):
+        with col:
+            st.markdown(
+                f"""
+                <div class="info-card" style="
+                padding:1rem;
+                border-radius:12px;
+                background:rgba(255,255,255,0.25);
+                backdrop-filter:blur(8px);
+                -webkit-backdrop-filter:blur(8px);
+                border:1px solid rgba(255,255,255,0.3);
+                box-shadow:0 8px 32px rgba(0,0,0,0.1);
+                text-align:center;
+                margin-bottom:1rem;
+                ">
+                <div class="info-card-icon" style="
+                background:{bg};
+                width:50px;height:50px;
+                border-radius:50%;
+                display:flex;align-items:center;justify-content:center;
+                margin:0 auto 0.5rem auto;
+                ">
+                <span style="color:{accent};font-size:1.3rem;">{icon}</span>
                 </div>
-                <div style="font-size: 1rem;">
-                    <strong>Grader Score: {grade["score"]:.2f}</strong> | {grade["feedback"]}
+                <div class="info-card-title" style="
+                font-weight:600;font-size:1rem;margin-bottom:0.3rem;color:#83D6FD;">
+                {title}
                 </div>
+                <div class="info-card-body" style="
+                font-size:0.875rem;color:#fff;line-height:1.4;">
+                {body}
+                </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+
+    # ------------------------------------------------------------------
+    # Priority System (fixed‑width boxes)
+    # ------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="section-header"><div class="section-icon">◈</div> Priority System</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(5)
+    priority_bg = {
+        5: "#001F3F",
+        4: "#003366",
+        3: "#004A99",
+        2: "#66CCFF",
+        1: "#99CCFF",
+    }
+    for col, (p, color) in zip(cols, sorted(PRIORITY_COLORS.items(), reverse=True)):
+        txt = priority_text_color(p)
+        # --------‑ uniform width‑box ---------
+        with col:
+            st.markdown(
+                f"""
+                <div class="priority-box" style="
+                background:{priority_bg[p]};
+                border:1.5px solid {color};
+                color:{txt};
+                ">
+                    <div class="priority-circle" style="color:{color};">●</div>
+                    <div class="priority-label">P{p}</div>
+                    <div class="priority-desc">{PRIORITY_LABELS[p]}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+
+# ----------------------------------------------------------------------
+# Results screen – KPI cards, Gantt, legends, explainable AI …
+# ----------------------------------------------------------------------
+def render_results():
+    obs      = st.session_state.obs
+    action   = st.session_state.action
+    metrics  = st.session_state.metrics
+    score    = st.session_state.score
+    grade    = st.session_state.grade
+    explanations = st.session_state.explanations
+
+    # ----- colour helpers -------------------------------------------------
+    score_color = "mint" if score >= 0.8 else ("amber" if score >= 0.6 else "rose")
+    carbon_color, carbon_label, carbon_badge = carbon_status(
+        metrics["total_carbon_gco2"], metrics["jobs_total"]
+    )
+
+    # ----- performance overview --------------------------------------------
+    st.markdown(
+        f"""
+        <div class="section-header"><div class="section-icon">◎</div> Performance Overview</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3, c4 = st.columns(4)
+
+    with c1:
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">Overall Score</div>
+            <div class="kpi-value {score_color}">{score:.0%}</div>
+            <div class="kpi-sub">Target ≥ 70%</div>
+            <div class="kpi-badge {'badge-mint' if score >= 0.8 else 'badge-amber' if score >= 0.6 else 'badge-rose'}">
+            {'Excellent' if score >= 0.8 else 'Good' if score >= 0.6 else 'Needs Work'}
             </div>
-            ''', unsafe_allow_html=True)
-        elif grade['score'] >= 0.6:
-            st.markdown(f'''
-            <div class="status-good">
-                <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem;">
-                    ✓ Good Performance
-                </div>
-                <div style="font-size: 1rem;">
-                    <strong>Grader Score: {grade["score"]:.2f}</strong> | {grade["feedback"]}
-                </div>
             </div>
-            ''', unsafe_allow_html=True)
-        else:
-            st.markdown(f'''
-            <div class="status-warning">
-                <div style="font-size: 1.2rem; font-weight: 600; margin-bottom: 0.5rem;">
-                    ⚠ Needs Improvement
-                </div>
-                <div style="font-size: 1rem;">
-                    <strong>Grader Score: {grade["score"]:.2f}</strong> | {grade["feedback"]}
-                </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">Carbon Emissions</div>
+            <div class="kpi-value {carbon_color}">{metrics['total_carbon_gco2']:,}</div>
+            <div class="kpi-sub">gCO₂ total</div>
+            <div class="kpi-badge {carbon_badge}">{carbon_label}</div>
             </div>
-            ''', unsafe_allow_html=True)
-        
-        # Main visualizations
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">📈 Schedule Visualization</h2>', unsafe_allow_html=True)
-        
-        # Gantt chart
-        gantt_fig = create_gantt_chart(obs, action)
-        if gantt_fig:
-            st.plotly_chart(gantt_fig, use_container_width=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        # Carbon and utilization side by side
-        col1, col2 = st.columns(2)
-        with col1:
-            st.plotly_chart(create_carbon_chart(obs.carbon_intensity), use_container_width=True)
-        with col2:
-            st.plotly_chart(create_utilization_chart(obs, action), use_container_width=True)
-        
-        # Priority legend with elegant badges
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">🎨 Priority Color Legend</h2>', unsafe_allow_html=True)
-        
-        cols = st.columns(5)
-        priority_labels = {5: "Critical", 4: "High", 3: "Medium", 2: "Low", 1: "Minimal"}
-        for i, (p, color) in enumerate(sorted(PRIORITY_COLORS.items(), reverse=True)):
-            with cols[i]:
-                st.markdown(
-                    f'<div class="priority-badge" style="background: {color};">'
-                    f'Priority {p}<br><small>{priority_labels[p]}</small></div>', 
-                    unsafe_allow_html=True
-                )
-        
-        # Explainability
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">🤔 Explainable AI - Why These Decisions?</h2>', unsafe_allow_html=True)
-        
-        # Show explanations in a more organized way
-        num_jobs_to_show = min(5, len(explanations))
-        for job_id in sorted(explanations.keys())[:num_jobs_to_show]:
-            job = next((j for j in obs.jobs if j.id == job_id), None)
-            if job:
-                priority_color = PRIORITY_COLORS.get(job.priority, '#95a5a6')
-                with st.expander(f"📝 Job {job_id} (Priority {job.priority}, Duration {job.duration}h, Deadline {job.deadline})", expanded=False):
-                    st.markdown(f'<div style="border-left: 4px solid {priority_color}; padding-left: 1rem;">', unsafe_allow_html=True)
-                    st.text(explanations[job_id])
-                    st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Agent output section with better organization
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<h2 class="section-header">🤖 Agent Output & Grader Response</h2>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### 📋 Schedule JSON")
-            st.markdown('<div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">', unsafe_allow_html=True)
-            st.json(st.session_state.action_dict)
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("#### 📊 Grader Metrics")
-            st.markdown('<div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);">', unsafe_allow_html=True)
-            st.json({
+            """,
+            unsafe_allow_html=True,
+        )
+    with c3:
+        scheduled_ids = {item.job_id for item in action.schedule}
+        completed = sum(1 for job in obs.jobs if job.id in scheduled_ids)
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">Jobs Scheduled</div>
+            <div class="kpi-value">{completed}</div>
+            <div class="kpi-sub">of {len(obs.jobs)} total</div>
+            <div class="kpi-badge badge-sky">Completion</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c4:
+        util = metrics["average_utilization"] * 100
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">Avg Utilisation</div>
+            <div class="kpi-value">{util:.0f}%</div>
+            <div class="kpi-sub">of capacity used</div>
+            <div class="kpi-badge badge-sky">Capacity</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ----- detailed metrics -----------------------------------------------
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">Deadline Misses</div>
+            <div class="kpi-value">{metrics['deadline_misses']}</div>
+            <div class="kpi-sub">Missed deadlines</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">Capacity Violations</div>
+            <div class="kpi-value">{metrics['capacity_violations']}</div>
+            <div class="kpi-sub">Over‑capacity events</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c3:
+        hp = sum(1 for job in obs.jobs if job.priority >= 4)
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">High‑Priority Jobs</div>
+            <div class="kpi-value">{hp}</div>
+            <div class="kpi-sub">Priority 4–5</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c4:
+        avg_c = metrics["average_carbon_per_job"]
+        st.markdown(
+            f"""
+            <div class="kpi-card">
+            <div class="kpi-label">Avg Carbon / Job</div>
+            <div class="kpi-value">{avg_c:.0f}</div>
+            <div class="kpi-sub">gCO₂ per job</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
+
+    # ----- grader feedback -------------------------------------------------
+    g = grade["score"]
+    if g >= 0.8:
+        cls, icon, label = "status-excellent", "✦", "Excellent Performance"
+    elif g >= 0.6:
+        cls, icon, label = "status-good", "◆", "Good Performance"
+    else:
+        cls, icon, label = "status-warning", "▲", "Needs Improvement"
+
+    st.markdown(
+        f"""
+        <div class="{cls}" style="
+        padding:1rem;
+        border-radius:12px;
+        background:rgba(255,255,255,0.2);
+        backdrop-filter:blur(8px);
+        -webkit-backdrop-filter:blur(8px);
+        border:1px solid rgba(255,255,255,0.25);
+        box-shadow:0 8px 32px rgba(0,0,0,0.08);
+        margin-bottom:1rem;
+        ">
+            <div class="status-title" style="
+            font-weight:600;font-size:0.95rem;color:#fff;margin-bottom:0.3rem;">
+                {icon} &nbsp; {label} &nbsp;&mdash;&nbsp; Grader Score: {g:.2f}
+            </div>
+            <div class="status-body" style="
+            font-size:0.85rem;line-height:1.4;color:#fff;">
+                {grade['feedback']}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ------------------------------------------------------------------
+    # Schedule visualisation (Gantt + other charts)
+    # ------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="section-header"><div class="section-icon">◈</div> Schedule Visualisation</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    gantt = create_gantt_chart(obs, action)
+    if gantt:
+        st.plotly_chart(gantt, use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    col_left, col_right = st.columns(2)
+    with col_left:
+        st.plotly_chart(create_carbon_chart(obs.carbon_intensity), use_container_width=True)
+    with col_right:
+        st.plotly_chart(create_utilization_chart(obs, action), use_container_width=True)
+
+    # ------------------------------------------------------------------
+    # Priority legend (same style as the boxes above)
+    # ------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="section-header"><div class="section-icon">●</div> Priority Colour Legend</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    cols = st.columns(5)
+    priority_bg = {
+        5: "#001F3F",
+        4: "#003366",
+        3: "#004A99",
+        2: "#66CCFF",
+        1: "#99CCFF",
+    }
+    for col, (p, color) in zip(cols, sorted(PRIORITY_COLORS.items(), reverse=True)):
+        txt = priority_text_color(p)
+        with col:
+            st.markdown(
+                f"""
+                <div class="priority-box" style="
+                background:{priority_bg[p]};
+                border:1.5px solid {color};
+                color:{txt};
+                ">
+                    <div class="priority-circle" style="color:{color};">●</div>
+                    <div class="priority-label">P{p}</div>
+                    <div class="priority-desc">{PRIORITY_LABELS[p]}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # ------------------------------------------------------------------
+    # Explainable AI
+    # ------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="section-header"><div class="section-icon">◈</div> Explainable AI — Decision Reasoning</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f"""
+        <div style="font-size:0.85rem;color:{PALETTE['navy']};margin-bottom:1rem;
+        padding:0.7rem 1rem;background:#F0F9FF;border-radius:8px;
+        border:1px solid {PALETTE['border']};">
+        Each scheduling decision is backed by a multi‑factor evaluation of carbon intensity,
+        priority level, deadline urgency and resource availability.
+        Expand any job below to inspect the reasoning chain.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    for job_id in sorted(explanations.keys())[:6]:
+        job = next((j for j in obs.jobs if j.id == job_id), None)
+        if not job:
+            continue
+        colour = PRIORITY_COLORS.get(job.priority, PALETTE["steel"])
+        with st.expander(
+            f"Job {job_id} · Priority {job.priority} ({PRIORITY_LABELS.get(job.priority,'')})"
+            f" · {job.duration}h · Deadline {job.deadline}",
+            expanded=False,
+        ):
+            st.markdown(
+                f"""
+                <div class="explain-card" style="border-left:3px solid {colour};">
+                {explanations[job_id].replace(chr(10), '<br>')}
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # ------------------------------------------------------------------
+    # Agent output & grader response
+    # ------------------------------------------------------------------
+    st.markdown(
+        f"""
+        <div class="section-header"><div class="section-icon">◈</div> Agent Output &amp; Grader Response</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("#### 📋 Schedule JSON")
+        st.json(st.session_state.action_dict)
+    with col_b:
+        st.markdown("#### 📊 Grader Metrics")
+        st.json(
+            {
                 "score": grade["score"],
                 "feedback": grade["feedback"],
                 "metrics": {
-                    "carbon_gco2": metrics['total_carbon_gco2'],
+                    "carbon_gco2": metrics["total_carbon_gco2"],
                     "completion_rate": f"{metrics['completion_rate']:.1%}",
-                    "deadline_misses": metrics['deadline_misses'],
-                    "capacity_violations": metrics['capacity_violations'],
-                    "utilization": f"{metrics['average_utilization']:.1%}"
-                }
-            })
-            st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Download section
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            results = {
-                "task": task_name,
-                "optimizer": st.session_state.optimizer_name,
-                "score": score,
-                "grader": grade,
-                "metrics": metrics,
-                "schedule": st.session_state.action_dict
+                    "deadline_misses": metrics["deadline_misses"],
+                    "capacity_violations": metrics["capacity_violations"],
+                    "utilisation": f"{metrics['average_utilization']:.1%}",
+                },
             }
-            st.download_button(
-                "📥 Download Complete Results (JSON)",
-                data=json.dumps(results, indent=2),
-                file_name=f"results_{task_name}_{st.session_state.optimizer_name.lower().replace(' ', '_')}.json",
-                mime="application/json",
-                use_container_width=True
-            )
-    
+        )
+    st.markdown("<div style='height:1.5rem'></div>", unsafe_allow_html=True)
+
+    # ------------------------------------------------------------------
+    # Download button
+    # ------------------------------------------------------------------
+    dl1, dl2, dl3 = st.columns([1, 2, 1])
+    with dl2:
+        results = {
+            "task": st.session_state.task_name,
+            "optimizer": st.session_state.optimizer_name,
+            "score": score,
+            "grader": grade,
+            "metrics": metrics,
+            "schedule": st.session_state.action_dict,
+        }
+        st.download_button(
+            "↓ Download Full Results (JSON)",
+            data=json.dumps(results, indent=2),
+            file_name="ecocloud_results.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+
+# ----------------------------------------------------------------------
+# Main entry point
+# ----------------------------------------------------------------------
+def main():
+    render_navbar()
+    task_name, optimizer_name, use_real_carbon, run = render_sidebar()
+
+    if run:
+        with st.spinner("⏳ Scheduling jobs…"):
+            try:
+                config = load_config()
+                task_info = config["tasks"][task_name]
+                task_config = task_info["config"]
+                env = SchedulerEnv(task_config, seed=42, use_real_carbon=use_real_carbon)
+                obs = env.reset()
+
+                optimizer_map = {
+                    "Greedy (Deadline)": GreedyOptimizer,
+                    "Greedy (Priority)": PriorityGreedyOptimizer,
+                    "Greedy (Carbon)": CarbonFirstOptimizer,
+                    "ILP (Optimal)": ILPOptimizer,
+                }
+                optimizer = optimizer_map[optimizer_name](obs)
+                action = optimizer.solve()
+
+                obs, reward, _, _ = env.step(action)
+
+                metrics = SchedulerMetrics(obs, action).compute_all_metrics()
+                score = compute_score(metrics)
+
+                action_dict = {
+                    "schedule": [
+                        {"job_id": i.job_id, "start_time": i.start_time}
+                        for i in action.schedule
+                    ]
+                }
+                grade = grade_task(task_name, action_dict)
+
+                explanations = ScheduleExplainer(obs, action).explain_all()
+
+                # Store everything in session_state for later rendering
+                st.session_state.update(
+                    {
+                        "obs": obs,
+                        "action": action,
+                        "reward": reward,
+                        "metrics": metrics,
+                        "score": score,
+                        "grade": grade,
+                        "explanations": explanations,
+                        "optimizer_name": optimizer_name,
+                        "action_dict": action_dict,
+                        "task_name": task_name,
+                    }
+                )
+            except Exception as exc:
+                st.error(f"Scheduling error: {exc}")
+
+    if "obs" in st.session_state:
+        render_results()
     else:
-        # Welcome screen with better design
-        st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-        
-        st.markdown("""
-        <div style="text-align: center; padding: 2rem; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-            <h2 style="margin-bottom: 1rem;">👋 Welcome to Carbon-Aware Scheduling</h2>
-            <p style="font-size: 1.1rem; opacity: 0.8; margin-bottom: 2rem;">
-                Configure your task in the sidebar and click <strong>'Run Scheduler'</strong> to begin!
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("""
-            <div class="metric-card" style="text-align: center;">
-                <div style="font-size: 3rem; margin-bottom: 1rem;">🌍</div>
-                <h3>Real Carbon Data</h3>
-                <p style="opacity: 0.7;">Live carbon intensity from power grids worldwide</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("""
-            <div class="metric-card" style="text-align: center;">
-                <div style="font-size: 3rem; margin-bottom: 1rem;">🧠</div>
-                <h3>Smart Algorithms</h3>
-                <p style="opacity: 0.7;">Multiple optimization strategies from greedy to optimal</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown("""
-            <div class="metric-card" style="text-align: center;">
-                <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
-                <h3>Visual Analytics</h3>
-                <p style="opacity: 0.7;">Interactive charts and explainable AI decisions</p>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
-        # Quick stats
-        st.markdown('<h2 class="section-header">🌟 Why Carbon-Aware Scheduling?</h2>', unsafe_allow_html=True)
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown("""
-            <div style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 2.5rem; font-weight: 700; color: #28a745;">20-40%</div>
-                <div style="opacity: 0.7;">Emission Reduction</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("""
-            <div style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 2.5rem; font-weight: 700; color: #667eea;">1%</div>
-                <div style="opacity: 0.7;">Global Electricity</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown("""
-            <div style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 2.5rem; font-weight: 700; color: #ffc107;">500K</div>
-                <div style="opacity: 0.7;">Tons CO2 Saved/Year</div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown("""
-            <div style="text-align: center; padding: 1.5rem;">
-                <div style="font-size: 2.5rem; font-weight: 700; color: #764ba2;">3</div>
-                <div style="opacity: 0.7;">Major Cloud Providers</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    # Footer
-    st.markdown('<div class="elegant-divider"></div>', unsafe_allow_html=True)
-    st.markdown(
-        '<p style="text-align: center; opacity: 0.5; font-size: 0.9rem;">'
-        'OpenEnv Competition 2024 | Built for Sustainable Computing 🌱'
-        '</p>', 
-        unsafe_allow_html=True
-    )
+        render_welcome()
+
 
 if __name__ == "__main__":
     main()
