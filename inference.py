@@ -121,9 +121,13 @@ def run_inference(task_name: str = "medium") -> float:
     print(f"[START] Carbon-Aware Scheduler Inference  |  task={task_name}")
 
     # ── Config ──────────────────────────────
-    api_key    = os.getenv("OPENAI_API_KEY",  "dummy-key")
-    api_base   = os.getenv("API_BASE_URL",    "https://api.openai.com/v1")
-    model_name = os.getenv("MODEL_NAME",      "gpt-4")
+    # Environment variables as per OpenEnv submission requirements
+    api_base   = os.getenv("API_BASE_URL",    "https://api.openai.com/v1")  # Default provided
+    model_name = os.getenv("MODEL_NAME",      "gpt-4")                       # Default provided
+    hf_token   = os.getenv("HF_TOKEN")                                       # No default - required
+    
+    # Use HF_TOKEN as the API key for OpenAI client
+    api_key = hf_token if hf_token else "dummy-key-for-local-testing"
 
     print(f"[STEP] Model : {model_name}")
     print(f"[STEP] API   : {api_base}")

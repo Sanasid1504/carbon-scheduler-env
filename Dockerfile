@@ -20,9 +20,9 @@ COPY . .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-ENV OPENAI_API_KEY=""
 ENV API_BASE_URL="https://api.openai.com/v1"
 ENV MODEL_NAME="gpt-4"
+# HF_TOKEN should be set at runtime (no default)
 
 # Expose Streamlit port for Hugging Face Spaces
 EXPOSE 7860
