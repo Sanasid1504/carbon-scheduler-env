@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "carbon-aware-scheduler"
+version = "1.0.0"
+description = "Carbon-Aware Cloud Workload Scheduler - OpenEnv Competition Submission"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "OpenEnv Team"}
+]
+keywords = ["openenv", "carbon-aware", "scheduling", "reinforcement-learning", "sustainability"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "pydantic>=2.0.0",
+    "pulp>=2.7.0",
+    "pyyaml>=6.0",
+    "openai>=1.0.0",
+    "numpy>=1.24.0",
+    "requests>=2.28.0",
+    "streamlit>=1.28.0",
+    "plotly>=5.17.0",
+    "pandas>=2.0.0",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+]
+
+[project.urls]
+Homepage = "https://huggingface.co/spaces/Pranshu-07/carbon-aware-scheduler"
+Repository = "https://huggingface.co/spaces/Pranshu-07/carbon-aware-scheduler"
+Documentation = "https://huggingface.co/spaces/Pranshu-07/carbon-aware-scheduler"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "mypy>=1.0.0",
+]
+
+[tool.setuptools]
+packages = ["env", "optimizer", "metrics", "explain"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json"]
