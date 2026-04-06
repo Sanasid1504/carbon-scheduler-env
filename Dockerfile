@@ -18,6 +18,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Create non-root user (required by HF Spaces)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user PATH=/home/user/.local/bin:$PATH
+WORKDIR /home/user/app
+COPY --chown=user . .
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV API_BASE_URL="https://api.openai.com/v1"
@@ -27,12 +34,6 @@ ENV MODEL_NAME="gpt-4"
 # Expose port for Hugging Face Spaces
 EXPOSE 7860
 
-# Run FastAPI server (for OpenEnv API compliance)
-CMD ["python", "api_server.py"]
-
-# Alternative commands:
-# Run Streamlit UI: CMD ["streamlit", "run", "app.py", "--server.port=7860", "--server.address=0.0.0.0"]
-# Run main demo: docker run carbon-scheduler python main.py
-# Run inference: docker run -e HF_TOKEN=xxx carbon-scheduler python inference.py medium
-# Interactive: docker run -it carbon-scheduler bash
+# Run FastAPI server via uvicorn directly (more reliable on HF Spaces)
+CMD ["uvicorn", "api_server:app", "--host", "0.0.0.0", "--port", "7860"]
 
