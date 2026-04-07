@@ -172,7 +172,7 @@ def compute_score(metrics: Dict[str, Any]) -> float:
     - Subtract for unscheduled jobs
     
     Returns:
-        Score in [0.0, 1.0]
+        Score strictly in (0.0, 1.0) - never exactly 0 or 1
     """
     score = 1.0
     
@@ -192,5 +192,8 @@ def compute_score(metrics: Dict[str, Any]) -> float:
         if carbon_per_job > 500:
             score -= min(0.3, (carbon_per_job - 500) / 1000)
     
-    # Clamp to [0.0, 1.0]
-    return max(0.0, min(1.0, score))
+    # Clamp to (0.01, 0.99) - strictly between 0 and 1
+    # This ensures scores are never exactly 0.0 or 1.0
+    score = max(0.01, min(0.99, score))
+    
+    return score
