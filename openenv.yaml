@@ -85,9 +85,7 @@ tasks:
     difficulty: 1
     grader:
       module: grader
-      function: grade_task
-      args:
-        task_name: easy
+      function: grade_easy
     config:
       capacity: 10
       time_horizon: 24
@@ -110,9 +108,7 @@ tasks:
     difficulty: 2
     grader:
       module: grader
-      function: grade_task
-      args:
-        task_name: medium
+      function: grade_medium
     config:
       capacity: 3
       time_horizon: 24
@@ -151,9 +147,7 @@ tasks:
     difficulty: 3
     grader:
       module: grader
-      function: grade_task
-      args:
-        task_name: hard
+      function: grade_hard
     config:
       capacity: 2
       time_horizon: 24

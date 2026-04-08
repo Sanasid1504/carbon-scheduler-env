@@ -198,6 +198,22 @@ def grade_all_tasks(actions: Any = None) -> Dict[str, Any]:
     return grade(actions)
 
 
+# ── Task-specific grader wrappers for openenv.yaml ───────────────────────────
+def grade_easy(action_dict: Any = None) -> Dict[str, Any]:
+    """Grader for easy task - called by validator."""
+    return grade_task("easy", action_dict)
+
+
+def grade_medium(action_dict: Any = None) -> Dict[str, Any]:
+    """Grader for medium task - called by validator."""
+    return grade_task("medium", action_dict)
+
+
+def grade_hard(action_dict: Any = None) -> Dict[str, Any]:
+    """Grader for hard task - called by validator."""
+    return grade_task("hard", action_dict)
+
+
 # ── Self-test ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import sys
