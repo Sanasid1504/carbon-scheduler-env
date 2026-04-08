@@ -198,20 +198,35 @@ def grade_all_tasks(actions: Any = None) -> Dict[str, Any]:
     return grade(actions)
 
 
-# ── Task-specific grader wrappers for openenv.yaml ───────────────────────────
-def grade_easy(action_dict: Any = None) -> Dict[str, Any]:
-    """Grader for easy task - called by validator."""
-    return grade_task("easy", action_dict)
+# ── Individual task graders ──────────────────────────────────────────────────
+# The platform expects three explicit grader entry points – one for each
+# benchmark.  They simply delegate to `grade_task` with the appropriate
+# task name.  Adding these wrappers fixes the "Not enough tasks with graders"
+# error while keeping the original logic untouched.
+def grade_easy(action: Any = None) -> Dict[str, Any]:
+    """Grader for the `easy` task."""
+    return grade_task("easy", action)
 
 
-def grade_medium(action_dict: Any = None) -> Dict[str, Any]:
-    """Grader for medium task - called by validator."""
-    return grade_task("medium", action_dict)
+def grade_medium(action: Any = None) -> Dict[str, Any]:
+    """Grader for the `medium` task."""
+    return grade_task("medium", action)
 
 
-def grade_hard(action_dict: Any = None) -> Dict[str, Any]:
-    """Grader for hard task - called by validator."""
-    return grade_task("hard", action_dict)
+def grade_hard(action: Any = None) -> Dict[str, Any]:
+    """Grader for the `hard` task."""
+    return grade_task("hard", action)
+
+
+# Export the public names that the evaluator will look for.
+__all__ = [
+    "grade",
+    "grade_task",
+    "grade_all_tasks",
+    "grade_easy",
+    "grade_medium",
+    "grade_hard",
+]
 
 
 # ── Self-test ─────────────────────────────────────────────────────────────────
