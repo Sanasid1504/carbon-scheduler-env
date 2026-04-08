@@ -12,7 +12,7 @@ from metrics.analytics import SchedulerMetrics, compute_score
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 TASKS = ["easy", "medium", "hard"]
-_EPS  = 1e-6   # keeps scores strictly inside (0, 1)
+_EPS  = 0.001   # keeps scores strictly inside (0, 1) with more margin
 
 
 # ── Safe clamp ────────────────────────────────────────────────────────────────
@@ -32,11 +32,13 @@ def _clamp(value: Any) -> float:
 
 def _fmt(value: float) -> float:
     """
-    Strip trailing zeros from a float's string representation.
-    e.g. 0.7000 → 0.7,  0.75000 → 0.75,  0.123456 → 0.123456
-    Returns a float whose repr has no unnecessary trailing zeros.
+    Format float to 1-2 decimal places, removing trailing zeros.
+    Examples: 0.7000 → 0.7, 0.75 → 0.75, 0.123456 → 0.12
     """
-    return float(f"{value:.10f}".rstrip("0").rstrip("."))
+    # Round to 2 decimal places
+    rounded = round(float(value), 2)
+    # Convert to string and strip trailing zeros
+    return float(f"{rounded:.2f}".rstrip("0").rstrip("."))
 
 
 # ── Config loader ─────────────────────────────────────────────────────────────
