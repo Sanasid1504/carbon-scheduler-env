@@ -2,6 +2,7 @@
 Main entry point for Carbon-Aware Cloud Workload Scheduler.
 Demonstrates environment usage with different optimizers.
 """
+import math
 import yaml
 from env.scheduler_env import SchedulerEnv
 from optimizer.greedy import GreedyOptimizer, PriorityGreedyOptimizer, CarbonFirstOptimizer
@@ -16,6 +17,35 @@ def load_config(task_name: str = "medium") -> dict:
         config = yaml.safe_load(f)
     
     return config["tasks"][task_name]["config"]
+
+
+# ----------------------------------------------------------------------
+# Score formatting - matches grader.py behavior
+# ----------------------------------------------------------------------
+_EPS = 1e-6  # keeps scores strictly inside (0, 1)
+
+
+def _clamp(value) -> float:
+    """
+    Return a float strictly between 0 and 1.
+    Handles: None, NaN, -inf, +inf, negative, >1, non-numeric.
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return _EPS
+    if math.isnan(v) or math.isinf(v):
+        return _EPS
+    return max(_EPS, min(1.0 - _EPS, v))
+
+
+def _fmt(value: float) -> float:
+    """
+    Strip trailing zeros from a float's string representation.
+    e.g. 0.7000 → 0.7,  0.75000 → 0.75,  0.123456 → 0.123456
+    Returns a float whose repr has no unnecessary trailing zeros.
+    """
+    return float(f"{value:.10f}".rstrip("0").rstrip("."))
 
 
 def run_optimizer(env: SchedulerEnv, optimizer_class, optimizer_name: str):
@@ -37,20 +67,21 @@ def run_optimizer(env: SchedulerEnv, optimizer_class, optimizer_name: str):
     # Compute metrics
     metrics_analyzer = SchedulerMetrics(obs, action)
     metrics = metrics_analyzer.compute_all_metrics()
-    score = compute_score(metrics)
+    raw_score = compute_score(metrics)
+    score = _clamp(raw_score)  # Ensure score is strictly in (0, 1)
     
     # Generate explanations
     explainer = ScheduleExplainer(obs, action)
     
-    # Display results
-    print(f"\nReward: {reward.total:.4f}")
-    print(f"Score: {score:.4f}")
+    # Display results with clean formatting
+    print(f"\nReward: {_fmt(reward.total)}")
+    print(f"Score: {_fmt(score)}")
     print(f"\nReward Breakdown:")
-    print(f"  Carbon Penalty: {reward.carbon_penalty:.4f}")
-    print(f"  Deadline Penalty: {reward.deadline_penalty:.4f}")
-    print(f"  Capacity Penalty: {reward.capacity_penalty:.4f}")
-    print(f"  Unscheduled Penalty: {reward.unscheduled_penalty:.4f}")
-    print(f"  Completion Bonus: {reward.completion_bonus:.4f}")
+    print(f"  Carbon Penalty: {_fmt(reward.carbon_penalty)}")
+    print(f"  Deadline Penalty: {_fmt(reward.deadline_penalty)}")
+    print(f"  Capacity Penalty: {_fmt(reward.capacity_penalty)}")
+    print(f"  Unscheduled Penalty: {_fmt(reward.unscheduled_penalty)}")
+    print(f"  Completion Bonus: {_fmt(reward.completion_bonus)}")
     
     print(f"\n{metrics_analyzer.generate_report()}")
     
@@ -105,7 +136,7 @@ def main():
         print(f"TASK {task_name.upper()} SUMMARY")
         print(f"{'=' * 70}")
         for name, score in sorted(results.items(), key=lambda x: -x[1]):
-            print(f"{name:40s}: {score:.4f}")
+            print(f"{name:40s}: {_fmt(score)}")
 
 
 if __name__ == "__main__":
